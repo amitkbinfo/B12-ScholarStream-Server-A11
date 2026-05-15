@@ -12,5 +12,5 @@ app.get("/", (req, res) => {
 })
 
 app.listen(port, () => {
-    console.log(`ScholerSteam is running on port: ${port}`);
+    console.log(`ScholarSteam is running on port: ${port}`);
 })
