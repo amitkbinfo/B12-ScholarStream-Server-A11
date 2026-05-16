@@ -26,7 +26,22 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    const db = client.db("ScholarStream");
+    const scholarshipsCollection = db.collection("scholarships");
 
+    // Scholarships
+    app.get("/scholarships", async(req, res) => {
+        const query = {};
+        const result = await scholarshipsCollection.find(query).toArray();
+        res.send(result);
+    })
+    app.post("/scholarships", async(req, res) => {
+        const newScholarships = req.body;
+
+        newScholarships.createdAt = new Date();
+        const result = await scholarshipsCollection.insertOne(newScholarships);
+        res.send(result);
+    })
 
 
 
