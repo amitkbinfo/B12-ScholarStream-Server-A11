@@ -1,7 +1,7 @@
-const express = require('express');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-require('dotenv').config();
-const cors = require('cors');
+const express = require("express");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+require("dotenv").config();
+const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -18,7 +18,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -31,53 +31,66 @@ async function run() {
     const scholarshipsCollection = db.collection("scholarships");
 
     // Users
-    app.get("/users", async(req, res) => {
-        const query = {}
-        const result = await usersCollection.find(query).toArray();
-        res.send(result);
-    })
-    app.get("/users/:id", async(req, res) => {
-        const id = req.params.id;
-        const query = {_id: new ObjectId(id)};
-        const result = await usersCollection.findOne(query);
-        res.send(result);
-    })
-    app.post("/users", async(req, res) => {
-        const user = req.body;
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email: email });
+      res.send(result);
+    });
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      user.role = "Student";
+      user.createdAt = new Date();
+      // check if already exists this user
+      const existingUser = await usersCollection.findOne({ email: user.email });
 
-        // check if already exists this user
-        const existingUser = await usersCollection.findOne({email: user.email});
-
-        if(existingUser) {
-            return res.send({message: "User already exists."})
-        }
-        const result = await usersCollection.insertOne(user);
-        res.send(result);
-    })
+      if (existingUser) {
+        return res.status(200).send({ message: "User already exists." });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+    app.patch("/users/role/:id", async (req, res) => {
+      const id = req.params.id;
+      const { role } = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateUserRole = {
+        $set: {
+          role,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateUserRole);
+      res.send(result);
+    });
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // Scholarships
-    app.get("/scholarships", async(req, res) => {
-        const query = {};
-        const result = await scholarshipsCollection.find(query).toArray();
-        res.send(result);
-    })
-    app.post("/scholarships", async(req, res) => {
-        const newScholarships = req.body;
+    app.get("/scholarships", async (req, res) => {
+      const query = {};
+      const result = await scholarshipsCollection.find(query).toArray();
+      res.send(result);
+    });
+    app.post("/scholarships", async (req, res) => {
+      const newScholarships = req.body;
 
-        newScholarships.createdAt = new Date();
-        const result = await scholarshipsCollection.insertOne(newScholarships);
-        res.send(result);
-    })
-
-
-
-
-
-
+      newScholarships.createdAt = new Date();
+      const result = await scholarshipsCollection.insertOne(newScholarships);
+      res.send(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -85,11 +98,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
 app.get("/", (req, res) => {
-    res.send("ScholarStream is connected!");
-})
+  res.send("ScholarStream is connected!");
+});
 
 app.listen(port, () => {
-    console.log(`ScholarSteam is running on port: ${port}`);
-})
+  console.log(`ScholarSteam is running on port: ${port}`);
+});
