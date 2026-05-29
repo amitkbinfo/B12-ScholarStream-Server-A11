@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const cors = require('cors');
 const app = express();
@@ -27,7 +27,33 @@ async function run() {
     await client.connect();
 
     const db = client.db("ScholarStream");
+    const usersCollection = db.collection("users");
     const scholarshipsCollection = db.collection("scholarships");
+
+    // Users
+    app.get("/users", async(req, res) => {
+        const query = {}
+        const result = await usersCollection.find(query).toArray();
+        res.send(result);
+    })
+    app.get("/users/:id", async(req, res) => {
+        const id = req.params.id;
+        const query = {_id: new ObjectId(id)};
+        const result = await usersCollection.findOne(query);
+        res.send(result);
+    })
+    app.post("/users", async(req, res) => {
+        const user = req.body;
+
+        // check if already exists this user
+        const existingUser = await usersCollection.findOne({email: user.email});
+
+        if(existingUser) {
+            return res.send({message: "User already exists."})
+        }
+        const result = await usersCollection.insertOne(user);
+        res.send(result);
+    })
 
     // Scholarships
     app.get("/scholarships", async(req, res) => {
