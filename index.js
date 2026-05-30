@@ -34,6 +34,8 @@ async function run() {
     const db = client.db("ScholarStream");
     const usersCollection = db.collection("users");
     const scholarshipsCollection = db.collection("scholarships");
+    const applicationsCollection = db.collection("applications");
+    const reviewsCollection = db.collection("reviews");
 
     // Users
     app.get("/users", async (req, res) => {
@@ -113,6 +115,17 @@ async function run() {
         ];
       }
 
+      //  All Scholarships Filter
+      if (scholarshipCategory) {
+        query.scholarshipCategory = scholarshipCategory;
+      }
+      if (subjectCategory) {
+        query.subjectCategory = subjectCategory;
+      }
+      if (location) {
+        query.universityCountry = location;
+      }
+
       //  Top Scholarship Sort
       let sortOption = {};
       if (sort === "latest") {
@@ -134,17 +147,13 @@ async function run() {
         cursor = cursor.limit(parseInt(limit));
       }
 
-      //  All Scholarships Filter
-      if (scholarshipCategory) {
-        query.scholarshipCategory = scholarshipCategory;
-      }
-      if (subjectCategory) {
-        query.subjectCategory = subjectCategory;
-      }
-      if (location) {
-        query.universityCountry = location;
-      }
       const result = await cursor.toArray();
+      res.send(result);
+    });
+    app.get("/scholarships/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await scholarshipsCollection.findOne(query);
       res.send(result);
     });
     app.post("/scholarships", async (req, res) => {
@@ -152,6 +161,16 @@ async function run() {
 
       newScholarships.createdAt = new Date();
       const result = await scholarshipsCollection.insertOne(newScholarships);
+      res.send(result);
+    });
+
+    // Reviews
+    app.get("/reviews/:scholarshipId", async (req, res) => {
+      const scholarshipId = req.params.scholarshipId;
+      const result = await reviewsCollection
+        .find({ scholarshipId })
+        .sort({ reviewDate: -1 })
+        .toArray();
       res.send(result);
     });
 
