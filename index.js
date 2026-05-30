@@ -79,9 +79,32 @@ async function run() {
 
     // Scholarships
     app.get("/scholarships", async (req, res) => {
-      const { limit, sort } = req.query;
+      const { limit, sort, search } = req.query;
       const query = {};
 
+      // Search
+      if (search) {
+        query.$or = [
+          {
+            scholarshipName: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            universityName: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            degree: {
+              $regex: search,
+              $options: "i",
+            },
+          },
+        ];
+      }
       //  Top Scholarship Sort
       let sortOption = {};
       if (sort === "latest") {
