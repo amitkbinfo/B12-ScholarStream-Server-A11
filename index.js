@@ -163,6 +163,22 @@ async function run() {
       const result = await scholarshipsCollection.insertOne(newScholarships);
       res.send(result);
     });
+    app.patch("/scholarships/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: updatedData,
+      };
+      const result = await scholarshipsCollection.updateOne(query, updateDoc);
+      res.send(result);
+    });
+    app.delete("/scholarships/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await scholarshipsCollection.deleteOne(query);
+      res.send(result);
+    });
 
     // Reviews
     app.get("/reviews/:scholarshipId", async (req, res) => {
