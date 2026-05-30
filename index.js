@@ -1,5 +1,10 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const {
+  MongoClient,
+  ServerApiVersion,
+  ObjectId,
+  serialize,
+} = require("mongodb");
 require("dotenv").config();
 const cors = require("cors");
 const app = express();
@@ -74,8 +79,30 @@ async function run() {
 
     // Scholarships
     app.get("/scholarships", async (req, res) => {
+      const { limit, sort } = req.query;
       const query = {};
-      const result = await scholarshipsCollection.find(query).toArray();
+
+      //  Top Scholarship Sort
+      let sortOption = {};
+      if (sort === "latest") {
+        sortOption = {
+          scholarshipPostDate: -1,
+        };
+      } else if (sort === "lowestFee") {
+        sortOption = {
+          applicationFees: 1,
+        };
+      } else {
+        sortOption = {
+          scholarshipPostDate: -1,
+        };
+      }
+      // Top Scholarship Limit
+      let cursor = scholarshipsCollection.find(query).sort(sortOption);
+      if (limit) {
+        cursor = cursor.limit(parseInt(limit));
+      }
+      const result = await cursor.toArray();
       res.send(result);
     });
     app.post("/scholarships", async (req, res) => {
