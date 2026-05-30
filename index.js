@@ -79,7 +79,14 @@ async function run() {
 
     // Scholarships
     app.get("/scholarships", async (req, res) => {
-      const { limit, sort, search } = req.query;
+      const {
+        limit,
+        sort,
+        search,
+        scholarshipCategory,
+        subjectCategory,
+        location,
+      } = req.query;
       const query = {};
 
       // Search
@@ -105,6 +112,7 @@ async function run() {
           },
         ];
       }
+
       //  Top Scholarship Sort
       let sortOption = {};
       if (sort === "latest") {
@@ -124,6 +132,17 @@ async function run() {
       let cursor = scholarshipsCollection.find(query).sort(sortOption);
       if (limit) {
         cursor = cursor.limit(parseInt(limit));
+      }
+
+      //  All Scholarships Filter
+      if (scholarshipCategory) {
+        query.scholarshipCategory = scholarshipCategory;
+      }
+      if (subjectCategory) {
+        query.subjectCategory = subjectCategory;
+      }
+      if (location) {
+        query.universityCountry = location;
       }
       const result = await cursor.toArray();
       res.send(result);
