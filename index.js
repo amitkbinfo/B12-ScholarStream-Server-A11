@@ -6,6 +6,7 @@ const {
   serialize,
 } = require("mongodb");
 require("dotenv").config();
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3000;
@@ -36,6 +37,7 @@ async function run() {
     const scholarshipsCollection = db.collection("scholarships");
     const applicationsCollection = db.collection("applications");
     const reviewsCollection = db.collection("reviews");
+    const paymentsCollection = db.collection("payments");
 
     // Users
     app.get("/users", async (req, res) => {
@@ -165,12 +167,20 @@ async function run() {
     });
     app.patch("/scholarships/:id", async (req, res) => {
       const id = req.params.id;
+
       const updatedData = req.body;
-      const query = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: updatedData,
-      };
-      const result = await scholarshipsCollection.updateOne(query, updateDoc);
+
+      delete updatedData._id;
+
+      const result = await scholarshipsCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: updatedData,
+        },
+      );
+
       res.send(result);
     });
     app.delete("/scholarships/:id", async (req, res) => {
@@ -194,6 +204,15 @@ async function run() {
         .find(query)
         .sort({ appliedAt: -1 })
         .toArray();
+
+      res.send(result);
+    });
+    app.get("/applications/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await applicationsCollection.findOne({
+        _id: new ObjectId(id),
+      });
 
       res.send(result);
     });
@@ -259,12 +278,78 @@ async function run() {
     });
 
     // Reviews
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewsCollection
+        .find()
+        .sort({ reviewDate: -1 })
+        .toArray();
+
+      res.send(result);
+    });
+    app.get("/review/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await reviewsCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(result);
+    });
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
       const result = await reviewsCollection
         .find({ scholarshipId })
         .sort({ reviewDate: -1 })
         .toArray();
+      res.send(result);
+    });
+    app.post("/reviews", async (req, res) => {
+      const review = req.body;
+      review.reviewDate = new Date();
+
+      const result = await reviewsCollection.insertOne(review);
+
+      res.send(result);
+    });
+    app.patch("/reviews/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const { ratingPoint, reviewComment } = req.body;
+
+      const result = await reviewsCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: {
+            ratingPoint,
+            reviewComment,
+            reviewDate: new Date(),
+          },
+        },
+      );
+
+      res.send(result);
+    });
+    app.delete("/reviews/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await reviewsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(result);
+    });
+
+    //  My Reviews
+    app.get("/my-reviews", async (req, res) => {
+      const email = req.query.email;
+
+      const result = await reviewsCollection
+        .find({ userEmail: email })
+        .sort({ reviewDate: -1 })
+        .toArray();
+
       res.send(result);
     });
 
@@ -296,6 +381,127 @@ async function run() {
 
       res.send(result);
     });
+
+    // Payment
+    app.post("/create-checkout-session", async (req, res) => {
+      try {
+        const paymentInfo = req.body;
+
+        console.log("Payment Info:", paymentInfo);
+
+        const amount = parseInt(paymentInfo.amount) * 100;
+
+        console.log("Amount:", amount);
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+
+                product_data: {
+                  name: paymentInfo.scholarshipName,
+                },
+
+                unit_amount: amount,
+              },
+
+              quantity: 1,
+            },
+          ],
+
+          mode: "payment",
+
+          customer_email: paymentInfo.email,
+
+          metadata: {
+            applicationId: paymentInfo.applicationId,
+          },
+
+          success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+
+          cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-failed`,
+        });
+
+        res.send({ url: session.url });
+      } catch (error) {
+        console.log("STRIPE ERROR:", error);
+
+        res.status(400).send({
+          message: error.message,
+        });
+      }
+    });
+    app.patch("/payment-success", async (req, res) => {
+  try {
+    const sessionId = req.query.session_id;
+
+    if (!sessionId) {
+      return res.status(400).send({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== "paid") {
+      return res.send({
+        success: false,
+        message: "Payment not completed",
+      });
+    }
+
+    const applicationId = session.metadata.applicationId;
+
+    const application = await applicationsCollection.findOne({
+      _id: new ObjectId(applicationId),
+    });
+
+    if (!application) {
+      return res.status(404).send({
+        success: false,
+        message: "Application not found",
+      });
+    }
+
+    // Prevent duplicate updates
+    if (application.paymentStatus === "paid") {
+      return res.send({
+        success: true,
+        message: "Payment already processed",
+      });
+    }
+
+    const result = await applicationsCollection.updateOne(
+      {
+        _id: new ObjectId(applicationId),
+      },
+      {
+        $set: {
+          paymentStatus: "paid",
+          paymentDate: new Date(),
+          stripeSessionId: session.id,
+        },
+      }
+    );
+
+    res.send({
+      success: true,
+      message: "Payment processed successfully",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("PAYMENT SUCCESS ERROR:", error);
+
+    res.status(500).send({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
