@@ -180,6 +180,84 @@ async function run() {
       res.send(result);
     });
 
+    // Applications
+    app.get("/applications", async (req, res) => {
+      const email = req.query.email;
+
+      const query = {};
+
+      if (email) {
+        query.applicantEmail = email;
+      }
+
+      const result = await applicationsCollection
+        .find(query)
+        .sort({ appliedAt: -1 })
+        .toArray();
+
+      res.send(result);
+    });
+    app.post("/applications", async (req, res) => {
+      const application = req.body;
+
+      application.paymentStatus = "unpaid";
+
+      application.applicationStatus = "pending";
+
+      application.feedback = "";
+
+      application.appliedAt = new Date();
+
+      const result = await applicationsCollection.insertOne(application);
+
+      res.send(result);
+    });
+    app.patch("/applications/status/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const { status } = req.body;
+
+      const result = await applicationsCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: {
+            applicationStatus: status,
+          },
+        },
+      );
+
+      res.send(result);
+    });
+    app.patch("/applications/feedback/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const { feedback } = req.body;
+
+      const result = await applicationsCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+        },
+        {
+          $set: {
+            feedback,
+          },
+        },
+      );
+
+      res.send(result);
+    });
+    app.delete("/applications/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const result = await applicationsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(result);
+    });
+
     // Reviews
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
@@ -187,6 +265,35 @@ async function run() {
         .find({ scholarshipId })
         .sort({ reviewDate: -1 })
         .toArray();
+      res.send(result);
+    });
+
+    // Admin
+    app.get("/admin-stats", async (req, res) => {
+      const totalUsers = await usersCollection.countDocuments();
+
+      const totalScholarships = await scholarshipsCollection.countDocuments();
+
+      const totalApplications = await applicationsCollection.countDocuments();
+
+      res.send({
+        totalUsers,
+        totalScholarships,
+        totalApplications,
+      });
+    });
+    app.get("/analytics/scholarship-category", async (req, res) => {
+      const result = await scholarshipsCollection
+        .aggregate([
+          {
+            $group: {
+              _id: "$scholarshipCategory",
+              count: { $sum: 1 },
+            },
+          },
+        ])
+        .toArray();
+
       res.send(result);
     });
 
